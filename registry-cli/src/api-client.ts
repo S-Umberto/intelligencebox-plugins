@@ -159,10 +159,10 @@ export class MCPRegistryAPIClient {
     });
 
     if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Unauthorized: Invalid password');
-      }
       const error = await response.json() as ErrorResponse;
+      if (response.status === 401) {
+        throw new Error(error.error || 'Unauthorized: Invalid password');
+      }
       throw new Error(error.error || error.message || 'Failed to create MCP');
     }
 
@@ -181,10 +181,10 @@ export class MCPRegistryAPIClient {
     });
 
     if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Unauthorized: Invalid password');
-      }
       const error = await response.json() as ErrorResponse;
+      if (response.status === 401) {
+        throw new Error(error.error || 'Unauthorized: Invalid password');
+      }
       throw new Error(error.error || error.message || 'Failed to update MCP');
     }
 
