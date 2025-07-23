@@ -47,7 +47,8 @@ jobs:
       - name: Convert owner to lowercase
         id: lowercase
         run: |
-          echo "owner=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "owner=${OWNER_LOWER}" >> $GITHUB_OUTPUT
       
       - name: Extract metadata
         id: meta
