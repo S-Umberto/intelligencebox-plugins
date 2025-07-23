@@ -4,6 +4,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import axios from 'axios';
 import dotenv from 'dotenv';
+import ToolHelper from './tool-helper.js';
 
 dotenv.config();
 
@@ -13,7 +14,9 @@ const SWAGGER_URL = `${API_BASE_URL}/swagger/v1/swagger.json`;
 
 let swaggerSpec = null;
 let tools = [];
+let clusteredTools = [];
 let authToken = null;
+const toolHelper = new ToolHelper();
 
 const server = new Server({
   name: 'iop-ticketing-mcp',
@@ -107,14 +110,39 @@ async function loadSwaggerSpec() {
           for (const param of operation.parameters) {
             const paramSchema = param.schema || { type: 'string' };
             
-            tool.inputSchema.properties[param.name] = {
+            const propertySchema = {
               type: paramSchema.type || 'string',
               description: param.description || param.name
             };
             
-            if (paramSchema.format) {
-              tool.inputSchema.properties[param.name].format = paramSchema.format;
+            // Handle array types properly
+            if (paramSchema.type === 'array') {
+              if (paramSchema.items) {
+                propertySchema.items = paramSchema.items;
+              } else {
+                // Default to string array if items not specified
+                propertySchema.items = { type: 'string' };
+                console.error(`Warning: Array parameter '${param.name}' missing items schema, defaulting to string array`);
+              }
             }
+            
+            if (paramSchema.format) {
+              propertySchema.format = paramSchema.format;
+            }
+            
+            if (paramSchema.enum) {
+              propertySchema.enum = paramSchema.enum;
+            }
+            
+            if (paramSchema.minimum !== undefined) {
+              propertySchema.minimum = paramSchema.minimum;
+            }
+            
+            if (paramSchema.maximum !== undefined) {
+              propertySchema.maximum = paramSchema.maximum;
+            }
+            
+            tool.inputSchema.properties[param.name] = propertySchema;
             
             if (param.required) {
               tool.inputSchema.required.push(param.name);
@@ -131,10 +159,47 @@ async function loadSwaggerSpec() {
     }
     
     console.error(`Loaded ${tools.length} GET endpoints from Swagger spec`);
+    
+    // Create clustered tools
+    createClusteredTools();
   } catch (error) {
     console.error('Failed to load Swagger spec:', error.message);
     throw error;
   }
+}
+
+function createClusteredTools() {
+  const categories = toolHelper.getAllCategories();
+  
+  for (const category of categories) {
+    // Create a clustered tool for each category
+    const clusteredTool = {
+      name: `${category.id}_cluster`,
+      description: `${category.icon} ${category.name}: ${category.description}`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          operation: {
+            type: 'string',
+            description: 'The specific operation to perform',
+            enum: category.tools
+          },
+          parameters: {
+            type: 'object',
+            description: 'Parameters for the selected operation',
+            additionalProperties: true
+          }
+        },
+        required: ['operation']
+      },
+      categoryTools: category.tools,
+      categoryInfo: category
+    };
+    
+    clusteredTools.push(clusteredTool);
+  }
+  
+  console.error(`Created ${clusteredTools.length} clustered tools from ${tools.length} endpoints`);
 }
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -142,13 +207,28 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     await loadSwaggerSpec();
   }
   
-  return {
-    tools: tools.map(({ name, description, inputSchema }) => ({
-      name,
-      description,
-      inputSchema
-    }))
-  };
+  // Return clustered tools by default to reduce the number of tools
+  // This helps prevent overwhelming the AI model
+  const useClusteredTools = process.env.USE_CLUSTERED_TOOLS !== 'false';
+  
+  if (useClusteredTools) {
+    return {
+      tools: clusteredTools.map(({ name, description, inputSchema }) => ({
+        name,
+        description,
+        inputSchema
+      }))
+    };
+  } else {
+    // Return all individual tools (original behavior)
+    return {
+      tools: tools.map(({ name, description, inputSchema }) => ({
+        name,
+        description,
+        inputSchema
+      }))
+    };
+  }
 });
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -158,10 +238,37 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   
   const { name, arguments: args } = request.params;
   
+  // Check if this is a clustered tool
+  if (name.endsWith('_cluster')) {
+    const clusteredTool = clusteredTools.find(t => t.name === name);
+    if (!clusteredTool) {
+      throw new Error(`Unknown clustered tool: ${name}`);
+    }
+    
+    // Extract the actual tool name and parameters
+    const actualToolName = args.operation;
+    const actualParameters = args.parameters || {};
+    
+    // Find the actual tool
+    const tool = tools.find(t => t.name === actualToolName);
+    if (!tool) {
+      throw new Error(`Unknown operation: ${actualToolName}`);
+    }
+    
+    // Call the actual tool with the parameters
+    return callTool(tool, actualParameters);
+  }
+  
+  // Regular tool call
   const tool = tools.find(t => t.name === name);
   if (!tool) {
     throw new Error(`Unknown tool: ${name}`);
   }
+  
+  return callTool(tool, args);
+});
+
+async function callTool(tool, args) {
   
   try {
     let url = tool.path;
@@ -214,7 +321,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       isError: true
     };
   }
-});
+}
 
 async function main() {
   try {
