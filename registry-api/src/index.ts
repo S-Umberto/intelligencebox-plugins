@@ -366,13 +366,13 @@ app.get('/', (req, res) => {
   });
 });
 
-// For Vercel
-export default app;
-
 // For local development
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
     console.log(`MCP Registry API running on port ${PORT}`);
   });
 }
+
+// For Vercel - export the Express app
+export default app;
