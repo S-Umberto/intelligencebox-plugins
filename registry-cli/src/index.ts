@@ -247,8 +247,7 @@ program
           { alignment: 'left' as const, width: 25 },
           { alignment: 'left' as const, width: 15 },
           { alignment: 'left' as const, width: 50 }
-        ],
-        wordWrap: true
+        ]
       };
       
       const data = [
@@ -448,9 +447,3 @@ program
   });
 
 program.parse(process.argv);
-
-// If no command is provided, show the interactive menu
-if (process.argv.length === 2) {
-  const menu = new MCPRegistryMenu();
-  menu.start().catch(console.error);
-}

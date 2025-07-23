@@ -17,21 +17,26 @@ export class MCPRegistryMenu {
 
   async start() {
     // Clear console and show banner
-    console.clear();
-    console.log(chalk.cyan(figlet.textSync('MCP Registry', { horizontalLayout: 'fitted' })));
-    console.log(chalk.gray('\u2501'.repeat(60)));
-    console.log(chalk.dim('Model Context Protocol Registry Manager v1.0.0'));
-    console.log();
+    this.clearAndShowBanner();
 
     while (!this.shouldExit) {
       try {
         await this.showMainMenu();
       } catch (error) {
         console.error(chalk.red('An unexpected error occurred. Please try again.'));
+        await this.pressEnterToContinue();
       }
     }
 
     console.log(chalk.cyan('\nThank you for using MCP Registry! Goodbye! \ud83d\udc4b'));
+  }
+
+  private clearAndShowBanner() {
+    console.clear();
+    console.log(chalk.cyan(figlet.textSync('MCP Registry', { horizontalLayout: 'fitted' })));
+    console.log(chalk.gray('\u2501'.repeat(60)));
+    console.log(chalk.dim('Model Context Protocol Registry Manager v1.0.0'));
+    console.log();
   }
 
   private async showMainMenu() {
@@ -495,8 +500,7 @@ export class MCPRegistryMenu {
         { alignment: 'left' as const, width: 15 },
         { alignment: 'center' as const, width: 10 },
         { alignment: 'center' as const, width: 10 }
-      ],
-      wordWrap: true
+      ]
     };
     
     const data = [
@@ -541,9 +545,6 @@ export class MCPRegistryMenu {
         message: chalk.dim('Press Enter to continue...'),
       }
     ]);
-    console.clear();
-    console.log(chalk.cyan(figlet.textSync('MCP Registry', { horizontalLayout: 'fitted' })));
-    console.log(chalk.gray('\u2501'.repeat(60)));
-    console.log();
+    this.clearAndShowBanner();
   }
 }
