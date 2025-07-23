@@ -14,9 +14,12 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "@types/figlet": "^1.7.0",
+    "boxen": "^8.0.1",
     "chalk": "^5.3.0",
     "commander": "^11.1.0",
     "dotenv": "^16.4.5",
+    "figlet": "^1.8.2",
     "inquirer": "^9.2.12",
     "ora": "^8.0.1",
     "table": "^6.8.1"
@@ -27,7 +30,12 @@
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   },
-  "keywords": ["mcp", "registry", "cli", "model-context-protocol"],
+  "keywords": [
+    "mcp",
+    "registry",
+    "cli",
+    "model-context-protocol"
+  ],
   "author": "",
   "license": "MIT",
   "engines": {

@@ -8,6 +8,9 @@ import inquirer from 'inquirer';
 import { table } from 'table';
 import { MCPRegistryAPIClient } from './api-client.js';
 import { MCPRegistry, MCPConfigParam } from './types.js';
+import figlet from 'figlet';
+import boxen from 'boxen';
+import { MCPRegistryMenu } from './menu.js';
 
 const apiClient = new MCPRegistryAPIClient();
 
@@ -15,8 +18,15 @@ const program = new Command();
 
 program
   .name('mcp-registry')
-  .description('CLI tool for managing MCP registry')
+  .description('CLI tool for managing Model Context Protocol registry')
   .version('1.0.0');
+
+// Display banner for CLI commands
+if (process.argv.length > 2 && process.argv[2] !== 'menu') {
+  console.log(chalk.cyan(figlet.textSync('MCP Registry', { horizontalLayout: 'fitted' })));
+  console.log(chalk.gray('━'.repeat(60)));
+  console.log();
+}
 
 // List command
 program
@@ -42,22 +52,72 @@ program
         return;
       }
       
+      const tableConfig = {
+        border: {
+          topBody: chalk.gray('─'),
+          topJoin: chalk.gray('┬'),
+          topLeft: chalk.gray('┌'),
+          topRight: chalk.gray('┐'),
+          bottomBody: chalk.gray('─'),
+          bottomJoin: chalk.gray('┴'),
+          bottomLeft: chalk.gray('└'),
+          bottomRight: chalk.gray('┘'),
+          bodyLeft: chalk.gray('│'),
+          bodyRight: chalk.gray('│'),
+          bodyJoin: chalk.gray('│'),
+          joinBody: chalk.gray('─'),
+          joinLeft: chalk.gray('├'),
+          joinRight: chalk.gray('┤'),
+          joinJoin: chalk.gray('┼')
+        },
+        columns: [
+          { alignment: 'left' },
+          { alignment: 'left' },
+          { alignment: 'left' },
+          { alignment: 'center' },
+          { alignment: 'center' },
+          { alignment: 'center' }
+        ]
+      };
+      
       const data = [
-        ['ID', 'Name', 'Category', 'Version', 'Enabled', 'Visibility'],
+        [
+          chalk.bold.cyan('ID'),
+          chalk.bold.cyan('Name'),
+          chalk.bold.cyan('Category'),
+          chalk.bold.cyan('Version'),
+          chalk.bold.cyan('Enabled'),
+          chalk.bold.cyan('Visibility')
+        ],
         ...mcps.map(mcp => [
-          mcp.id,
-          mcp.name,
-          mcp.category,
-          mcp.version || '1.0.0',
-          mcp.enabled ? chalk.green('✓') : chalk.red('✗'),
-          mcp.visibility
+          chalk.white(mcp.id),
+          chalk.bold(mcp.name),
+          chalk.magenta(mcp.category),
+          chalk.dim(mcp.version || '1.0.0'),
+          mcp.enabled ? chalk.green('✓ Yes') : chalk.red('✗ No'),
+          mcp.visibility === 'public' ? chalk.green('Public') : chalk.yellow('Private')
         ])
       ];
       
-      console.log(table(data));
+      console.log(table(data, tableConfig));
     } catch (error: any) {
       spinner.fail('Failed to fetch MCPs');
-      console.error(chalk.red(error.message));
+      
+      const errorBox = boxen(
+        chalk.red(error.message),
+        {
+          padding: 1,
+          borderStyle: 'round',
+          borderColor: 'red',
+          title: chalk.bold.red('❌ Error'),
+          titleAlignment: 'center'
+        }
+      );
+      console.error(errorBox);
+      
+      if (error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED')) {
+        console.log(chalk.dim('\nTip: Check your internet connection and API URL in .env file'));
+      }
     }
   });
 
@@ -78,36 +138,73 @@ program
       
       spinner.succeed(`Found MCP '${id}'`);
       
-      console.log('\n' + chalk.bold.blue('MCP Details:'));
-      console.log(chalk.gray('─'.repeat(50)));
-      console.log(`${chalk.bold('ID:')} ${mcp.id}`);
-      console.log(`${chalk.bold('Name:')} ${mcp.name}`);
-      console.log(`${chalk.bold('Description:')} ${mcp.description}`);
-      console.log(`${chalk.bold('Author:')} ${mcp.author}`);
-      console.log(`${chalk.bold('Version:')} ${mcp.version || '1.0.0'}`);
-      console.log(`${chalk.bold('Category:')} ${mcp.category}`);
-      console.log(`${chalk.bold('Tags:')} ${mcp.tags.join(', ')}`);
-      console.log(`${chalk.bold('Docker Image:')} ${mcp.dockerImage}:${mcp.dockerTag || 'latest'}`);
-      console.log(`${chalk.bold('Enabled:')} ${mcp.enabled ? chalk.green('Yes') : chalk.red('No')}`);
-      console.log(`${chalk.bold('Visibility:')} ${mcp.visibility}`);
+      const details = boxen(
+        [
+          `${chalk.bold.cyan('ID:')} ${mcp.id}`,
+          `${chalk.bold.cyan('Name:')} ${chalk.bold(mcp.name)}`,
+          `${chalk.bold.cyan('Description:')} ${mcp.description}`,
+          `${chalk.bold.cyan('Author:')} ${chalk.magenta(mcp.author)}`,
+          `${chalk.bold.cyan('Version:')} ${chalk.dim(mcp.version || '1.0.0')}`,
+          `${chalk.bold.cyan('Category:')} ${chalk.magenta(mcp.category)}`,
+          `${chalk.bold.cyan('Tags:')} ${mcp.tags.map(tag => chalk.blue(`#${tag}`)).join(' ')}`,
+          `${chalk.bold.cyan('Docker:')} ${chalk.gray(`${mcp.dockerImage}:${mcp.dockerTag || 'latest'}`)}`,
+          `${chalk.bold.cyan('Status:')} ${mcp.enabled ? chalk.green('✓ Enabled') : chalk.red('✗ Disabled')}`,
+          `${chalk.bold.cyan('Visibility:')} ${mcp.visibility === 'public' ? chalk.green('Public') : chalk.yellow('Private')}`
+        ].join('\n'),
+        {
+          title: chalk.bold.blue('MCP Details'),
+          titleAlignment: 'center',
+          padding: 1,
+          margin: 1,
+          borderStyle: 'round',
+          borderColor: 'blue'
+        }
+      );
+      
+      console.log(details);
       
       if (mcp.documentationUrl) {
         console.log(`${chalk.bold('Documentation:')} ${mcp.documentationUrl}`);
       }
       
       if (Object.keys(mcp.configSchema).length > 0) {
-        console.log('\n' + chalk.bold('Configuration Parameters:'));
-        for (const [key, param] of Object.entries(mcp.configSchema)) {
-          console.log(`  ${chalk.cyan(key)} (${param.type}${param.required ? ', required' : ''})`);
-          console.log(`    ${param.description}`);
-          if (param.default !== undefined) {
-            console.log(`    Default: ${param.default}`);
+        const configBox = boxen(
+          Object.entries(mcp.configSchema)
+            .map(([key, param]) => {
+              const parts = [
+                `${chalk.bold.cyan(key)} ${chalk.gray(`(${param.type}${param.required ? ', required' : ''})`)}`
+              ];
+              parts.push(`  ${chalk.dim(param.description)}`);
+              if (param.default !== undefined) {
+                parts.push(`  ${chalk.gray('Default:')} ${chalk.green(param.default)}`);
+              }
+              return parts.join('\n');
+            })
+            .join('\n\n'),
+          {
+            title: chalk.bold.yellow('Configuration Parameters'),
+            titleAlignment: 'center',
+            padding: 1,
+            borderStyle: 'round',
+            borderColor: 'yellow'
           }
-        }
+        );
+        console.log(configBox);
       }
     } catch (error: any) {
       spinner.fail('Failed to fetch MCP');
-      console.error(chalk.red(error.message));
+      
+      const errorBox = boxen(
+        chalk.red(error.message),
+        {
+          padding: 1,
+          borderStyle: 'round',
+          borderColor: 'red',
+          title: chalk.bold.red('❌ Error'),
+          titleAlignment: 'center'
+        }
+      );
+      console.error(errorBox);
     }
   });
 
@@ -127,21 +224,64 @@ program
         return;
       }
       
+      const tableConfig = {
+        border: {
+          topBody: chalk.gray('─'),
+          topJoin: chalk.gray('┬'),
+          topLeft: chalk.gray('┌'),
+          topRight: chalk.gray('┐'),
+          bottomBody: chalk.gray('─'),
+          bottomJoin: chalk.gray('┴'),
+          bottomLeft: chalk.gray('└'),
+          bottomRight: chalk.gray('┘'),
+          bodyLeft: chalk.gray('│'),
+          bodyRight: chalk.gray('│'),
+          bodyJoin: chalk.gray('│'),
+          joinBody: chalk.gray('─'),
+          joinLeft: chalk.gray('├'),
+          joinRight: chalk.gray('┤'),
+          joinJoin: chalk.gray('┼')
+        },
+        columns: [
+          { alignment: 'left', width: 20 },
+          { alignment: 'left', width: 25 },
+          { alignment: 'left', width: 15 },
+          { alignment: 'left', width: 50 }
+        ],
+        wordWrap: true
+      };
+      
       const data = [
-        ['ID', 'Name', 'Category', 'Description'],
+        [
+          chalk.bold.cyan('ID'),
+          chalk.bold.cyan('Name'),
+          chalk.bold.cyan('Category'),
+          chalk.bold.cyan('Description')
+        ],
         ...mcps.map(mcp => [
-          mcp.id,
-          mcp.name,
-          mcp.category,
-          mcp.description.length > 50 ? mcp.description.substring(0, 50) + '...' : mcp.description
+          chalk.white(mcp.id),
+          chalk.bold(mcp.name),
+          chalk.magenta(mcp.category),
+          chalk.dim(mcp.description.length > 50 ? mcp.description.substring(0, 50) + '...' : mcp.description)
         ])
       ];
       
-      console.log(table(data));
+      console.log(table(data, tableConfig));
       
     } catch (error: any) {
       spinner.fail('Search failed');
-      console.error(chalk.red(error.message));
+      
+      const errorBox = boxen(
+        chalk.red(error.message),
+        {
+          padding: 1,
+          borderStyle: 'round',
+          borderColor: 'red',
+          title: chalk.bold.red('❌ Error'),
+          titleAlignment: 'center'
+        }
+      );
+      console.error(errorBox);
     }
   });
 
@@ -156,18 +296,36 @@ program
       const categories = await apiClient.getCategories();
       spinner.succeed(`Found ${categories.length} categories`);
       
-      console.log('\n' + chalk.bold('Available Categories:'));
-      categories.forEach(cat => console.log(`  • ${cat}`));
+      const categoryBox = boxen(
+        categories.map(cat => `${chalk.cyan('•')} ${chalk.bold(cat)}`).join('\n'),
+        {
+          title: chalk.bold.magenta('Available Categories'),
+          titleAlignment: 'center',
+          padding: 1,
+          margin: 1,
+          borderStyle: 'round',
+          borderColor: 'magenta'
+        }
+      );
+      console.log(categoryBox);
       
     } catch (error: any) {
       spinner.fail('Failed to fetch categories');
-      console.error(chalk.red(error.message));
+      
+      const errorBox = boxen(
+        chalk.red(error.message),
+        {
+          padding: 1,
+          borderStyle: 'round',
+          borderColor: 'red',
+          title: chalk.bold.red('❌ Error'),
+          titleAlignment: 'center'
+        }
+      );
+      console.error(errorBox);
     }
   });
 
-// Admin commands (would need authentication in production)
-console.log(chalk.yellow('\nNote: Admin commands (add, edit, delete, import) require direct database access.'));
-console.log(chalk.yellow('For production use, these should be protected with authentication.\n'));
 
 // Add command
 program
@@ -280,4 +438,19 @@ program
     }
   });
 
+// Interactive menu command (default)
+program
+  .command('menu', { isDefault: true })
+  .description('Launch interactive menu (default)')
+  .action(async () => {
+    const menu = new MCPRegistryMenu();
+    await menu.start();
+  });
+
 program.parse(process.argv);
+
+// If no command is provided, show the interactive menu
+if (process.argv.length === 2) {
+  const menu = new MCPRegistryMenu();
+  menu.start().catch(console.error);
+}

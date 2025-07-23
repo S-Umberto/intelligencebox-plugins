@@ -1,0 +1,8 @@
+{
+  "registry-mirrors": [
+    "https://mirror.gcr.io"
+  ],
+  "insecure-registries": [],
+  "debug": false,
+  "experimental": true
+}

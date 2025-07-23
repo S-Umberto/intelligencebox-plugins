@@ -43,49 +43,92 @@ export class MCPRegistryAPIClient {
     if (filters?.featured) params.append('featured', 'true');
     if (filters?.search) params.append('search', filters.search);
 
-    const response = await fetch(`${this.apiUrl}/api/registry?${params}`);
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Authentication required. The API endpoint is protected. Please check if the API URL is correct and accessible.');
+    try {
+      const response = await fetch(`${this.apiUrl}/api/registry?${params}`);
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('🔒 Authentication required. The API endpoint is protected.');
+        }
+        if (response.status === 404) {
+          throw new Error('🔍 API endpoint not found. Please check your API URL configuration.');
+        }
+        if (response.status === 500) {
+          throw new Error('🚨 Server error. The API service might be temporarily unavailable.');
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      throw new Error(`Failed to fetch MCPs: ${response.status} ${response.statusText}`);
+      const data = await response.json() as ListResponse;
+      return data.mcps || [];
+    } catch (error: any) {
+      if (error.code === 'ENOTFOUND') {
+        throw new Error('🌐 Cannot reach the API server. Please check your internet connection.');
+      }
+      if (error.code === 'ECONNREFUSED') {
+        throw new Error('🚫 Connection refused. The API server might be down.');
+      }
+      throw error;
     }
 
-    const data = await response.json() as ListResponse;
-    return data.mcps || [];
   }
 
   async get(id: string): Promise<MCPRegistry | null> {
-    const response = await fetch(`${this.apiUrl}/api/registry/${id}`);
-    if (response.status === 404) {
-      return null;
-    }
-    if (!response.ok) {
-      throw new Error(`Failed to fetch MCP: ${response.statusText}`);
-    }
+    try {
+      const response = await fetch(`${this.apiUrl}/api/registry/${id}`);
+      if (response.status === 404) {
+        return null;
+      }
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('🔒 Authentication required to view this MCP.');
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
 
-    const data = await response.json() as GetResponse;
-    return data.mcp;
+      const data = await response.json() as GetResponse;
+      return data.mcp;
+    } catch (error: any) {
+      if (error.code === 'ENOTFOUND') {
+        throw new Error('🌐 Cannot reach the API server. Please check your internet connection.');
+      }
+      throw error;
+    }
   }
 
   async search(query: string): Promise<MCPRegistry[]> {
-    const response = await fetch(`${this.apiUrl}/api/search?q=${encodeURIComponent(query)}`);
-    if (!response.ok) {
-      throw new Error(`Search failed: ${response.statusText}`);
-    }
+    try {
+      const response = await fetch(`${this.apiUrl}/api/search?q=${encodeURIComponent(query)}`);
+      if (!response.ok) {
+        if (response.status === 400) {
+          throw new Error('🔍 Invalid search query. Please check your search terms.');
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
 
-    const data = await response.json() as SearchResponse;
-    return data.results || [];
+      const data = await response.json() as SearchResponse;
+      return data.results || [];
+    } catch (error: any) {
+      if (error.code === 'ENOTFOUND') {
+        throw new Error('🌐 Cannot reach the API server. Please check your internet connection.');
+      }
+      throw error;
+    }
   }
 
   async getCategories(): Promise<string[]> {
-    const response = await fetch(`${this.apiUrl}/api/categories`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch categories: ${response.statusText}`);
-    }
+    try {
+      const response = await fetch(`${this.apiUrl}/api/categories`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
 
-    const data = await response.json() as CategoriesResponse;
-    return data.categories || [];
+      const data = await response.json() as CategoriesResponse;
+      return data.categories || [];
+    } catch (error: any) {
+      if (error.code === 'ENOTFOUND') {
+        throw new Error('🌐 Cannot reach the API server. Please check your internet connection.');
+      }
+      throw error;
+    }
   }
 
   // Admin endpoints (these would need authentication in production)
