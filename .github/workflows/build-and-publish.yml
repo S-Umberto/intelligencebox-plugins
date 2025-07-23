@@ -12,11 +12,10 @@ on:
         description: 'MCP server name (e.g., mcp-iop-ticketing-server)'
         required: true
         type: string
+        default: 'mcp-iop-ticketing-server'
 
 env:
   REGISTRY: ghcr.io
-  # GitHub container registry requires lowercase
-  IMAGE_PREFIX: ${{ github.repository_owner }}
 
 jobs:
   build-and-push:
@@ -24,10 +23,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-    
-    strategy:
-      matrix:
-        include: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('[{{"context": "./servers/{0}", "image": "{0}", "dockerfile": "Dockerfile"}}]', github.event.inputs.server_name)) || fromJSON('[{"context": "./servers/mcp-iop-ticketing-server", "image": "mcp-iop-ticketing-server", "dockerfile": "Dockerfile"}]') }}
     
     steps:
       - name: Checkout repository
@@ -44,17 +39,26 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Convert owner to lowercase
-        id: lowercase
+      - name: Set build variables
+        id: vars
         run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            SERVER_NAME="${{ github.event.inputs.server_name }}"
+          else
+            SERVER_NAME="mcp-iop-ticketing-server"
+          fi
+          echo "server_name=${SERVER_NAME}" >> $GITHUB_OUTPUT
+          echo "context=./servers/${SERVER_NAME}" >> $GITHUB_OUTPUT
+          
+          # Convert repository owner to lowercase
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          echo "owner=${OWNER_LOWER}" >> $GITHUB_OUTPUT
+          echo "owner_lower=${OWNER_LOWER}" >> $GITHUB_OUTPUT
       
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ steps.lowercase.outputs.owner }}/${{ matrix.image }}
+          images: ${{ env.REGISTRY }}/${{ steps.vars.outputs.owner_lower }}/${{ steps.vars.outputs.server_name }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -66,8 +70,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.context }}/${{ matrix.dockerfile }}
+          context: ${{ steps.vars.outputs.context }}
+          file: ${{ steps.vars.outputs.context }}/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
