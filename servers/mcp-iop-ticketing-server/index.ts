@@ -215,15 +215,37 @@ function createClusteredTools(): void {
   const categories = toolHelper.getAllCategories();
   
   for (const category of categories) {
+    // Get all tools in this category and check which ones require parameters
+    const categoryToolsWithParams = category.tools.map(toolName => {
+      const tool = tools.find(t => t.name === toolName);
+      const requiredParams = tool?.parameters.filter(p => p.required) || [];
+      return {
+        name: toolName,
+        hasRequiredParams: requiredParams.length > 0,
+        requiredParams: requiredParams.map(p => p.name)
+      };
+    });
+    
+    // Build a description that indicates which operations need parameters
+    const toolsNeedingParams = categoryToolsWithParams.filter(t => t.hasRequiredParams);
+    let enhancedDescription = `${category.icon} ${category.name}: ${category.description}`;
+    
+    if (toolsNeedingParams.length > 0) {
+      enhancedDescription += `\n\nNote: Some operations require parameters:`;
+      toolsNeedingParams.forEach(t => {
+        enhancedDescription += `\n- ${t.name}: requires ${t.requiredParams.join(', ')}`;
+      });
+    }
+    
     // Create Zod schema for the clustered tool
     const zodSchema = z.object({
       operation: z.enum(category.tools as [string, ...string[]]).describe('The specific operation to perform'),
-      parameters: z.record(z.any()).optional().describe('Parameters for the selected operation')
+      parameters: z.record(z.any()).optional().describe('Parameters for the selected operation (check operation requirements)')
     });
     
     const clusteredTool: ClusteredTool = {
       name: `${category.id}_cluster`,
-      description: `${category.icon} ${category.name}: ${category.description}`,
+      description: enhancedDescription,
       inputSchema: zodSchema,
       categoryTools: category.tools,
       categoryInfo: category
@@ -378,9 +400,16 @@ async function callTool(tool: ToolDefinition, args: any): Promise<{ content: Tex
       params: {}
     };
     
+    // Check for required parameters
+    const missingParams: string[] = [];
+    
     // Handle path parameters and query parameters
     for (const param of tool.parameters) {
       const value = args[param.name];
+      
+      if (param.required && value === undefined) {
+        missingParams.push(`${param.name} (${param.in})`);
+      }
       
       if (value !== undefined) {
         if (param.in === 'path') {
@@ -391,6 +420,23 @@ async function callTool(tool: ToolDefinition, args: any): Promise<{ content: Tex
           config.params[param.name] = value;
         }
       }
+    }
+    
+    // If there are missing required parameters, return an informative error
+    if (missingParams.length > 0) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Missing required parameters: ${missingParams.join(', ')}\n\nThis endpoint requires the following parameters:\n${
+              tool.parameters
+                .filter(p => p.required)
+                .map(p => `- ${p.name} (${p.in}): ${p.description || 'No description'}`)
+                .join('\n')
+            }`
+          }
+        ]
+      };
     }
     
     const response = await httpClient.get(url, config);
@@ -407,11 +453,37 @@ async function callTool(tool: ToolDefinition, args: any): Promise<{ content: Tex
     console.error(`Error calling ${tool.name}:`, error.message);
     
     if (error.response) {
+      // Parse error message for more helpful feedback
+      let errorMessage = `Error: ${error.response.status} ${error.response.statusText}\n`;
+      
+      if (error.response.data) {
+        const data = error.response.data;
+        if (data.Message) {
+          errorMessage += `\nMessage: ${data.Message}`;
+          
+          // Provide helpful hints for common errors
+          if (data.Message.includes('Not supported empty')) {
+            const paramName = data.Message.match(/Not supported empty (\w+)/)?.[1];
+            if (paramName) {
+              errorMessage += `\n\nHint: This endpoint requires the '${paramName}' parameter to be provided.`;
+              
+              // Find the parameter in the tool definition
+              const param = tool.parameters.find(p => p.name === paramName || p.name.toLowerCase() === paramName.toLowerCase());
+              if (param) {
+                errorMessage += `\n- ${param.name}: ${param.description || 'No description available'}`;
+              }
+            }
+          }
+        } else {
+          errorMessage += JSON.stringify(data, null, 2);
+        }
+      }
+      
       return {
         content: [
           {
             type: 'text',
-            text: `Error: ${error.response.status} ${error.response.statusText}\n${JSON.stringify(error.response.data, null, 2)}`
+            text: errorMessage
           }
         ]
       };
