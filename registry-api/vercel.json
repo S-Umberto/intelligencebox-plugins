@@ -1,4 +1,5 @@
 {
+  "version": 2,
   "functions": {
     "api/index.js": {
       "maxDuration": 10
@@ -10,7 +11,7 @@
       "destination": "/api/index.js"
     },
     {
-      "source": "/",
+      "source": "/(.*)",
       "destination": "/api/index.js"
     }
   ]
