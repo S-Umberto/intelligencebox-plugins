@@ -1,0 +1,42 @@
+{
+  "id": "iop-ticketing",
+  "name": "IOP Ticketing",
+  "description": "MCP server for integrating with the IOP Group ticketing API. Dynamically loads all GET endpoints from the Swagger/OpenAPI specification.",
+  "author": "intelligencebox",
+  "version": "1.0.0",
+  "icon": "🎫",
+  "category": "business",
+  "tags": ["ticketing", "api", "iop", "inventory", "orders", "customers"],
+  "dockerImage": "ghcr.io/intelligencebox-repo/mcp-iop-ticketing-server:latest",
+  "configSchema": {
+    "IOP_API_URL": {
+      "type": "string",
+      "description": "Base URL for the IOP API",
+      "required": false,
+      "default": "https://ticketing.iopgroup.it/IM.core.api.Radix"
+    },
+    "IOP_API_KEY": {
+      "type": "string",
+      "description": "Your API key for authentication (required for protected endpoints)",
+      "required": true
+    }
+  },
+  "requirements": {
+    "minMemory": "256Mi",
+    "minCpu": 0.2,
+    "capabilities": ["network"]
+  },
+  "features": [
+    "Dynamic endpoint loading from Swagger specification",
+    "Full parameter support (path and query)",
+    "Automatic API key authentication with token refresh",
+    "Articles and inventory management",
+    "Contacts and correspondence addresses",
+    "Customers and suppliers management",
+    "Orders, offers, and delivery notes",
+    "Prices and promotions",
+    "Warehouse and deposits",
+    "Configuration and system information"
+  ],
+  "documentationUrl": "https://ticketing.iopgroup.it/IM.core.api.Radix/swagger/index.html"
+}

@@ -1,0 +1,20 @@
+{
+  "name": "mcp-iop-ticketing-server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "list-endpoints": "node list-endpoints.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "IntelligenceBox Contributors",
+  "license": "MIT",
+  "description": "MCP server for IOP Group ticketing API integration",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.16.0",
+    "axios": "^1.11.0",
+    "dotenv": "^17.2.0"
+  }
+}
