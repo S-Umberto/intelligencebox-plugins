@@ -8,7 +8,7 @@
   "category": "business",
   "tags": ["ticketing", "api", "iop", "inventory", "orders", "customers"],
   "dockerImage": "ghcr.io/intelligencebox-repo/mcp-iop-ticketing-server:latest",
-  "entrypoint": "node /app/index.js",
+  "entrypoint": "node /app/dist/index.js",
   "configSchema": {
     "IOP_API_URL": {
       "type": "string",
