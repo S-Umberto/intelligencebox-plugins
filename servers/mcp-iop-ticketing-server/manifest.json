@@ -8,12 +8,13 @@
   "category": "business",
   "tags": ["ticketing", "api", "iop", "inventory", "orders", "customers"],
   "dockerImage": "ghcr.io/intelligencebox-repo/mcp-iop-ticketing-server:latest",
+  "entrypoint": "node /app/index.js",
   "configSchema": {
     "IOP_API_URL": {
       "type": "string",
       "description": "Base URL for the IOP API",
       "required": false,
-      "default": "https://ticketing.iopgroup.it/IM.core.api.Radix"
+      "default": "Iop Url"
     },
     "IOP_API_KEY": {
       "type": "string",

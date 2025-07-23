@@ -1,0 +1,245 @@
+{
+  "categories": {
+    "articles": {
+      "name": "Articles & Products",
+      "description": "Gestione articoli, prodotti e relative informazioni",
+      "icon": "📦",
+      "tools": [
+        "_api_v1_articles",
+        "_api_v1_articles_list",
+        "_api_v1_articles_count",
+        "_api_v1_articles_id__id_",
+        "_api_v1_articles_alternates",
+        "_api_v1_articles_alternates_id__id_",
+        "_api_v1_articles_id__id__alternates",
+        "_api_v1_articles_barcodes",
+        "_api_v1_articles_barcodes_id__id_",
+        "_api_v1_articles_id__id__barcodes",
+        "_api_v1_articles_depositData",
+        "_api_v1_articles_depositData_id__id_",
+        "_api_v1_articles_id__id__depositData",
+        "_api_v1_articles_measurementUnits",
+        "_api_v1_articles_measurementUnits_id__id_",
+        "_api_v1_articles_id__id__measurementUnits",
+        "_api_v1_articles_id__id__prices",
+        "_api_v1_articles_quantities",
+        "_api_v1_articles_supplierCustomerNumbers",
+        "_api_v1_articles_supplierCustomerNumbers_id__id_",
+        "_api_v1_articles_id__id__supplierCustomerNumber"
+      ]
+    },
+    "customers": {
+      "name": "Customers",
+      "description": "Gestione clienti e relativi dati",
+      "icon": "👥",
+      "tools": [
+        "_api_v1_customers",
+        "_api_v1_customers_list",
+        "_api_v1_customers_count",
+        "_api_v1_customers_id__id_",
+        "_api_v1_customers_id__id__contacts",
+        "_api_v1_customers_id__id__shippingAddresses",
+        "_api_v1_customerShippingAddresses",
+        "_api_v1_customerShippingAddresses_list",
+        "_api_v1_customerShippingAddresses_count",
+        "_api_v1_customerShippingAddresses_id__id_"
+      ]
+    },
+    "suppliers": {
+      "name": "Suppliers",
+      "description": "Gestione fornitori e relativi dati",
+      "icon": "🏭",
+      "tools": [
+        "_api_v1_suppliers",
+        "_api_v1_suppliers_list",
+        "_api_v1_suppliers_count",
+        "_api_v1_suppliers_id__id_",
+        "_api_v1_suppliers_id__id__contacts",
+        "_api_v1_suppliers_id__id__shippingAddresses",
+        "_api_v1_supplierShippingAddresses",
+        "_api_v1_supplierShippingAddresses_list",
+        "_api_v1_supplierShippingAddresses_count",
+        "_api_v1_supplierShippingAddresses_id__id_"
+      ]
+    },
+    "orders": {
+      "name": "Orders & Sales",
+      "description": "Gestione ordini di vendita",
+      "icon": "🛒",
+      "tools": [
+        "_api_v1_orders",
+        "_api_v1_orders_list",
+        "_api_v1_orders_count",
+        "_api_v1_orders_id__id_"
+      ]
+    },
+    "offers": {
+      "name": "Offers & Quotes",
+      "description": "Gestione offerte e preventivi",
+      "icon": "💰",
+      "tools": [
+        "_api_v1_offers",
+        "_api_v1_offers_list",
+        "_api_v1_offers_count",
+        "_api_v1_offers_id__id_"
+      ]
+    },
+    "deliveries": {
+      "name": "Delivery Notes",
+      "description": "Gestione documenti di trasporto",
+      "icon": "🚚",
+      "tools": [
+        "_api_v1_deliveryNotes",
+        "_api_v1_deliveryNotes_list",
+        "_api_v1_deliveryNotes_count",
+        "_api_v1_deliveryNotes_id__id_"
+      ]
+    },
+    "purchasing": {
+      "name": "Purchase Orders",
+      "description": "Gestione ordini di acquisto",
+      "icon": "📋",
+      "tools": [
+        "_api_v1_purchaseOrders",
+        "_api_v1_purchaseOrders_list",
+        "_api_v1_purchaseOrders_count",
+        "_api_v1_purchaseOrders_id__id_"
+      ]
+    },
+    "contacts": {
+      "name": "Contacts & Addresses",
+      "description": "Gestione contatti e indirizzi",
+      "icon": "📇",
+      "tools": [
+        "_api_v1_contacts",
+        "_api_v1_contacts_list",
+        "_api_v1_contacts_count",
+        "_api_v1_contacts_id__id_",
+        "_api_v1_correspondenceAddresses",
+        "_api_v1_correspondenceAddresses_list",
+        "_api_v1_correspondenceAddresses_count",
+        "_api_v1_correspondenceAddresses_id__id_",
+        "_api_v1_correspondenceAddresses_id__id__contacts"
+      ]
+    },
+    "pricing": {
+      "name": "Prices & Promotions",
+      "description": "Gestione prezzi e promozioni",
+      "icon": "🏷️",
+      "tools": [
+        "_api_v1_prices",
+        "_api_v1_prices_list",
+        "_api_v1_prices_count",
+        "_api_v1_prices_id__id_",
+        "_api_v1_prices_articleId__articleId_",
+        "_api_v1_prices_customerId__customerId_",
+        "_api_v1_prices_supplierId__supplierId_",
+        "_api_v1_promotions",
+        "_api_v1_promotions_list",
+        "_api_v1_promotions_count",
+        "_api_v1_promotions_id__id_",
+        "_api_v1_promotions_id__id__prices"
+      ]
+    },
+    "warehouse": {
+      "name": "Warehouse & Inventory",
+      "description": "Gestione magazzino e giacenze",
+      "icon": "🏪",
+      "tools": [
+        "_api_v1_warehouse_deposits",
+        "_api_v1_warehouse_deposits_list",
+        "_api_v1_warehouse_deposits_count",
+        "_api_v1_warehouse_deposits_id__id_"
+      ]
+    },
+    "production": {
+      "name": "Production & Part Lists",
+      "description": "Gestione produzione e distinte base",
+      "icon": "🏗️",
+      "tools": [
+        "_api_v1_partLists",
+        "_api_v1_partLists_list",
+        "_api_v1_partLists_count",
+        "_api_v1_partLists_id__id_"
+      ]
+    },
+    "sales": {
+      "name": "Sales Opportunities",
+      "description": "Gestione opportunità di vendita",
+      "icon": "📈",
+      "tools": [
+        "_api_v1_salesOpportunities",
+        "_api_v1_salesOpportunities_list",
+        "_api_v1_salesOpportunities_count",
+        "_api_v1_salesOpportunities_id__id_"
+      ]
+    },
+    "documents": {
+      "name": "Documents & Infobox",
+      "description": "Gestione documenti e allegati",
+      "icon": "📄",
+      "tools": [
+        "_api_v1_infobox_infoboxFile",
+        "_api_v1_infobox_infoboxFileContent",
+        "_api_v1_infobox_infoboxFiles",
+        "_api_v1_infobox_infoboxFolders",
+        "_api_v1_infobox_infoboxFoldersWithFileCount"
+      ]
+    },
+    "common": {
+      "name": "Common & Configuration",
+      "description": "Dati comuni e configurazioni sistema",
+      "icon": "⚙️",
+      "tools": [
+        "_api_configuration_reload",
+        "_api_v1_common_company",
+        "_api_v1_common_vats",
+        "_api_v1_common_paymentTypes",
+        "_api_v1_common_tips",
+        "_api_v1_common_messages",
+        "_api_v1_common_notes",
+        "_api_v1_common_additionalFieldDefinitions",
+        "_api_v1_common_additionalFieldDefinitionValues",
+        "_api_v1_common_additionalFields",
+        "_api_v1_common_classificationDefinition",
+        "_api_v1_common_classificationDefinitionValue",
+        "_api_v1_common_classifications"
+      ]
+    }
+  },
+  "quickAccess": {
+    "search": {
+      "name": "Search Tools",
+      "description": "Tool principali per ricerca rapida",
+      "tools": [
+        "_api_v1_articles",
+        "_api_v1_customers",
+        "_api_v1_suppliers",
+        "_api_v1_orders",
+        "_api_v1_contacts"
+      ]
+    },
+    "counts": {
+      "name": "Count Tools",
+      "description": "Tool per conteggi rapidi",
+      "tools": [
+        "_api_v1_articles_count",
+        "_api_v1_customers_count",
+        "_api_v1_suppliers_count",
+        "_api_v1_orders_count",
+        "_api_v1_contacts_count"
+      ]
+    },
+    "byId": {
+      "name": "Get by ID Tools",
+      "description": "Tool per recupero dettagli per ID",
+      "tools": [
+        "_api_v1_articles_id__id_",
+        "_api_v1_customers_id__id_",
+        "_api_v1_suppliers_id__id_",
+        "_api_v1_orders_id__id_",
+        "_api_v1_contacts_id__id_"
+      ]
+    }
+  }
+}
