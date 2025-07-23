@@ -14,7 +14,6 @@ yarn-error.log*
 api
 
 # Build output
-dist/
 build/
 *.tsbuildinfo
 
