@@ -71,12 +71,12 @@ program
           joinJoin: chalk.gray('┼')
         },
         columns: [
-          { alignment: 'left' },
-          { alignment: 'left' },
-          { alignment: 'left' },
-          { alignment: 'center' },
-          { alignment: 'center' },
-          { alignment: 'center' }
+          { alignment: 'left' as const },
+          { alignment: 'left' as const },
+          { alignment: 'left' as const },
+          { alignment: 'center' as const },
+          { alignment: 'center' as const },
+          { alignment: 'center' as const }
         ]
       };
       
@@ -243,10 +243,10 @@ program
           joinJoin: chalk.gray('┼')
         },
         columns: [
-          { alignment: 'left', width: 20 },
-          { alignment: 'left', width: 25 },
-          { alignment: 'left', width: 15 },
-          { alignment: 'left', width: 50 }
+          { alignment: 'left' as const, width: 20 },
+          { alignment: 'left' as const, width: 25 },
+          { alignment: 'left' as const, width: 15 },
+          { alignment: 'left' as const, width: 50 }
         ],
         wordWrap: true
       };

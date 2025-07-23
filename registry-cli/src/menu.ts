@@ -490,11 +490,11 @@ export class MCPRegistryMenu {
         joinJoin: chalk.gray('\u253c')
       },
       columns: [
-        { alignment: 'left', width: 20 },
-        { alignment: 'left', width: 25 },
-        { alignment: 'left', width: 15 },
-        { alignment: 'center', width: 10 },
-        { alignment: 'center', width: 10 }
+        { alignment: 'left' as const, width: 20 },
+        { alignment: 'left' as const, width: 25 },
+        { alignment: 'left' as const, width: 15 },
+        { alignment: 'center' as const, width: 10 },
+        { alignment: 'center' as const, width: 10 }
       ],
       wordWrap: true
     };
