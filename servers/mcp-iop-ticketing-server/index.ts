@@ -10,9 +10,13 @@ import {
 import axios, { AxiosInstance } from 'axios';
 import dotenv from 'dotenv';
 import { z } from 'zod';
-import ToolHelper from './tool-helper.js';
+import { SMART_TOOLS, cleanParameters, DEFAULTS } from './src/smart-tools.js';
 
+// Suppress dotenv console output
+const originalLog = console.log;
+console.log = () => {};
 dotenv.config();
+console.log = originalLog;
 
 const API_BASE_URL = process.env.IOP_API_URL || 'https://ticketing.iopgroup.it/IM.core.api.Radix';
 const API_KEY = process.env.IOP_API_KEY;
@@ -25,23 +29,13 @@ interface ToolDefinition {
   parameters: any[];
 }
 
-interface ClusteredTool {
-  name: string;
-  description: string;
-  inputSchema: z.ZodSchema;
-  categoryTools: string[];
-  categoryInfo: any;
-}
-
 let swaggerSpec: any = null;
 let tools: ToolDefinition[] = [];
-let clusteredTools: ClusteredTool[] = [];
 let authToken: string | null = null;
-const toolHelper = new ToolHelper();
 
 const server = new Server({
-  name: 'iop-ticketing-mcp',
-  version: '1.0.0'
+  name: 'iop-ticketing-mcp-enhanced',
+  version: '2.0.0'
 }, {
   capabilities: {
     tools: {}
@@ -56,7 +50,7 @@ const httpClient: AxiosInstance = axios.create({
   }
 });
 
-// Add request interceptor to include auth token
+// Add interceptors (same as before)
 httpClient.interceptors.request.use(
   (config) => {
     if (authToken) {
@@ -67,14 +61,11 @@ httpClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Add response interceptor to handle 401 errors
 httpClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401 && API_KEY) {
-      // Try to refresh the token
       await authenticate();
-      // Retry the original request
       error.config.headers['Authorization'] = `Bearer ${authToken}`;
       return httpClient.request(error.config);
     }
@@ -84,7 +75,6 @@ httpClient.interceptors.response.use(
 
 async function authenticate(): Promise<void> {
   if (!API_KEY) {
-    // Use stderr for warnings to not interfere with stdio protocol
     process.stderr.write('Warning: No API key configured. Some endpoints may require authentication.\n');
     return;
   }
@@ -102,83 +92,6 @@ async function authenticate(): Promise<void> {
     process.stderr.write('Successfully authenticated with API\n');
   } catch (error: any) {
     process.stderr.write(`Failed to authenticate: ${error.message}\n`);
-    if (error.response?.data) {
-      process.stderr.write(`Response: ${JSON.stringify(error.response.data)}\n`);
-    }
-  }
-}
-
-// Convert OpenAPI/Swagger schema to Zod schema
-function openApiToZod(schema: any): z.ZodSchema {
-  if (!schema || typeof schema !== 'object') {
-    return z.any();
-  }
-
-  const { type, properties, required = [], enum: enumValues, items, format } = schema;
-
-  switch (type) {
-    case 'string':
-      let stringSchema = z.string();
-      
-      if (enumValues && Array.isArray(enumValues)) {
-        const [first, ...rest] = enumValues;
-        return z.enum([first, ...rest] as [string, ...string[]]);
-      }
-      
-      if (format === 'date-time') {
-        return stringSchema.datetime();
-      } else if (format === 'date') {
-        return stringSchema.date();
-      } else if (format === 'email') {
-        return stringSchema.email();
-      } else if (format === 'uuid') {
-        return stringSchema.uuid();
-      }
-      
-      return stringSchema;
-      
-    case 'number':
-      return z.number();
-      
-    case 'integer':
-      return z.number().int();
-      
-    case 'boolean':
-      return z.boolean();
-      
-    case 'array':
-      if (items) {
-        return z.array(openApiToZod(items));
-      }
-      return z.array(z.any());
-      
-    case 'object':
-      if (!properties) {
-        return z.record(z.any());
-      }
-      
-      const shape: Record<string, z.ZodSchema> = {};
-      
-      for (const [key, prop] of Object.entries(properties)) {
-        let zodType = openApiToZod(prop as any);
-        
-        // Add description if available
-        if ((prop as any).description) {
-          zodType = zodType.describe((prop as any).description);
-        }
-        
-        // Make optional if not in required array
-        if (!required.includes(key)) {
-          zodType = zodType.optional();
-        }
-        
-        shape[key] = zodType;
-      }
-      
-      return z.object(shape);
-      
-    default:
-      return z.any();
   }
 }
 
@@ -203,83 +116,47 @@ async function loadSwaggerSpec(): Promise<void> {
     }
     
     process.stderr.write(`Loaded ${tools.length} GET endpoints from Swagger spec\n`);
-    
-    // Create clustered tools
-    createClusteredTools();
   } catch (error: any) {
     process.stderr.write(`Failed to load Swagger spec: ${error.message}\n`);
     throw error;
   }
 }
 
-function createClusteredTools(): void {
-  const categories = toolHelper.getAllCategories();
-  
-  for (const category of categories) {
-    // Get all tools in this category and check which ones require parameters
-    const categoryToolsWithParams = category.tools.map(toolName => {
-      const tool = tools.find(t => t.name === toolName);
-      const requiredParams = tool?.parameters.filter(p => p.required) || [];
-      return {
-        name: toolName,
-        hasRequiredParams: requiredParams.length > 0,
-        requiredParams: requiredParams.map(p => p.name)
-      };
-    });
-    
-    // Build a description that indicates which operations need parameters
-    const toolsNeedingParams = categoryToolsWithParams.filter(t => t.hasRequiredParams);
-    let enhancedDescription = `${category.icon} ${category.name}: ${category.description}`;
-    
-    if (toolsNeedingParams.length > 0) {
-      enhancedDescription += `\n\nNote: Some operations require parameters:`;
-      toolsNeedingParams.forEach(t => {
-        enhancedDescription += `\n- ${t.name}: requires ${t.requiredParams.join(', ')}`;
-      });
-    }
-    
-    // Create Zod schema for the clustered tool
-    const zodSchema = z.object({
-      operation: z.enum(category.tools as [string, ...string[]]).describe('The specific operation to perform'),
-      parameters: z.record(z.any()).optional().describe('Parameters for the selected operation (check operation requirements)')
-    });
-    
-    const clusteredTool: ClusteredTool = {
-      name: `${category.id}_cluster`,
-      description: enhancedDescription,
-      inputSchema: zodSchema,
-      categoryTools: category.tools,
-      categoryInfo: category
-    };
-    
-    clusteredTools.push(clusteredTool);
-  }
-  
-  process.stderr.write(`Created ${clusteredTools.length} clustered tools from ${tools.length} endpoints\n`);
-}
-
-// Convert Zod schema to JSON Schema for MCP protocol
+// Convert Zod schema to JSON Schema
 function zodToJsonSchema(schema: z.ZodSchema): any {
-  // This is a simplified conversion - in production you might use zod-to-json-schema
-  if (schema instanceof z.ZodString) {
-    return { type: 'string' };
-  } else if (schema instanceof z.ZodNumber) {
-    return { type: 'number' };
-  } else if (schema instanceof z.ZodBoolean) {
-    return { type: 'boolean' };
-  } else if (schema instanceof z.ZodArray) {
+  // This is a more complete implementation
+  const def = (schema as any)._def;
+  
+  if (def.typeName === 'ZodString') {
+    return { type: 'string', description: def.description };
+  } else if (def.typeName === 'ZodNumber') {
+    return { type: 'number', description: def.description };
+  } else if (def.typeName === 'ZodBoolean') {
+    return { type: 'boolean', description: def.description };
+  } else if (def.typeName === 'ZodOptional') {
+    return { ...zodToJsonSchema(def.innerType), required: false };
+  } else if (def.typeName === 'ZodDefault') {
+    return { ...zodToJsonSchema(def.innerType), default: def.defaultValue() };
+  } else if (def.typeName === 'ZodArray') {
     return { 
       type: 'array',
-      items: zodToJsonSchema((schema as any)._def.type)
+      items: zodToJsonSchema(def.type),
+      description: def.description
     };
-  } else if (schema instanceof z.ZodObject) {
-    const shape = (schema as any)._def.shape();
+  } else if (def.typeName === 'ZodEnum') {
+    return {
+      type: 'string',
+      enum: def.values,
+      description: def.description
+    };
+  } else if (def.typeName === 'ZodObject') {
     const properties: any = {};
     const required: string[] = [];
     
-    for (const [key, value] of Object.entries(shape)) {
-      properties[key] = zodToJsonSchema(value as z.ZodSchema);
-      if (!(value instanceof z.ZodOptional)) {
+    for (const [key, value] of Object.entries(def.shape())) {
+      const propSchema = zodToJsonSchema(value as z.ZodSchema);
+      properties[key] = propSchema;
+      if (propSchema.required !== false) {
         required.push(key);
       }
     }
@@ -287,20 +164,8 @@ function zodToJsonSchema(schema: z.ZodSchema): any {
     return {
       type: 'object',
       properties,
-      required: required.length > 0 ? required : undefined
-    };
-  } else if (schema instanceof z.ZodEnum) {
-    const values = (schema as any)._def.values;
-    return {
-      type: 'string',
-      enum: values
-    };
-  } else if (schema instanceof z.ZodOptional) {
-    return zodToJsonSchema((schema as any)._def.innerType);
-  } else if (schema instanceof z.ZodRecord) {
-    return {
-      type: 'object',
-      additionalProperties: true
+      required: required.length > 0 ? required : undefined,
+      description: def.description
     };
   }
   
@@ -312,46 +177,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     await loadSwaggerSpec();
   }
   
-  // Return clustered tools with proper JSON schema
-  const useClusteredTools = process.env.USE_CLUSTERED_TOOLS !== 'false';
+  // Return smart tools instead of clustered tools
+  const smartTools: Tool[] = [];
   
-  if (useClusteredTools) {
-    return {
-      tools: clusteredTools.map(({ name, description, inputSchema }) => ({
-        name,
-        description,
-        inputSchema: zodToJsonSchema(inputSchema)
-      }))
-    };
-  } else {
-    // Return all individual tools
-    const allTools: Tool[] = [];
-    
-    for (const tool of tools) {
-      // Build Zod schema from OpenAPI parameters
-      const shape: Record<string, z.ZodSchema> = {};
-      const required: string[] = [];
-      
-      for (const param of tool.parameters) {
-        const paramSchema = param.schema || { type: 'string' };
-        shape[param.name] = openApiToZod(paramSchema);
-        
-        if (param.required) {
-          required.push(param.name);
-        }
-      }
-      
-      const zodSchema = z.object(shape);
-      
-      allTools.push({
-        name: tool.name,
-        description: tool.description,
-        inputSchema: zodToJsonSchema(zodSchema)
-      });
-    }
-    
-    return { tools: allTools };
+  for (const [, tool] of Object.entries(SMART_TOOLS)) {
+    smartTools.push({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: zodToJsonSchema(tool.parameters)
+    });
   }
+  
+  process.stderr.write(`Returning ${smartTools.length} smart tools\n`);
+  
+  return { tools: smartTools };
 });
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -361,31 +200,65 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   
   const { name, arguments: args } = request.params;
   
-  // Check if this is a clustered tool
-  if (name.endsWith('_cluster')) {
-    const clusteredTool = clusteredTools.find(t => t.name === name);
-    if (!clusteredTool) {
-      throw new Error(`Unknown clustered tool: ${name}`);
+  // Check if this is a smart tool
+  const smartTool = Object.values(SMART_TOOLS).find(t => t.name === name);
+  
+  if (smartTool) {
+    try {
+      // Validate parameters
+      const validated = smartTool.parameters.parse(args);
+      
+      // Execute smart handler
+      const result = await smartTool.handler(validated);
+      
+      // Handle multiple operations (like universal search)
+      if (Array.isArray(result)) {
+        const responses = [];
+        
+        for (const op of result) {
+          const tool = tools.find(t => t.name === op.operation);
+          if (tool) {
+            const response = await callTool(tool, cleanParameters(op.parameters));
+            responses.push({
+              type: op.type,
+              data: JSON.parse(response.content[0].text)
+            });
+          }
+        }
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(responses, null, 2)
+            }
+          ]
+        };
+      } else {
+        // Single operation
+        const tool = tools.find(t => t.name === result.operation);
+        if (!tool) {
+          throw new Error(`Unknown operation: ${result.operation}`);
+        }
+        
+        return await callTool(tool, cleanParameters(result.parameters));
+      }
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Parameter validation error:\n${error.errors.map(e => `- ${e.path.join('.')}: ${e.message}`).join('\n')}`
+            }
+          ]
+        };
+      }
+      throw error;
     }
-    
-    // Validate input with Zod
-    const validated = clusteredTool.inputSchema.parse(args);
-    
-    // Extract the actual tool name and parameters
-    const actualToolName = validated.operation;
-    const actualParameters = validated.parameters || {};
-    
-    // Find the actual tool
-    const tool = tools.find(t => t.name === actualToolName);
-    if (!tool) {
-      throw new Error(`Unknown operation: ${actualToolName}`);
-    }
-    
-    // Call the actual tool with the parameters
-    return await callTool(tool, actualParameters);
   }
   
-  // Regular tool call
+  // Fallback to regular tool
   const tool = tools.find(t => t.name === name);
   if (!tool) {
     throw new Error(`Unknown tool: ${name}`);
@@ -401,52 +274,58 @@ async function callTool(tool: ToolDefinition, args: any): Promise<{ content: Tex
       params: {}
     };
     
-    // Check for required parameters
-    const missingParams: string[] = [];
+    // Apply smart defaults for pagination
+    if (tool.parameters.some(p => p.name === 'Skip' || p.name === 'Take')) {
+      if (args.Skip === undefined) {
+        args.Skip = DEFAULTS.DEFAULT_SKIP;
+      }
+      if (args.Take === undefined) {
+        args.Take = DEFAULTS.PAGE_SIZE;
+      }
+      // Enforce maximum page size
+      if (args.Take > DEFAULTS.MAX_PAGE_SIZE) {
+        args.Take = DEFAULTS.MAX_PAGE_SIZE;
+      }
+    }
     
-    // Handle path parameters and query parameters
+    // Handle parameters
     for (const param of tool.parameters) {
       const value = args[param.name];
       
-      if (param.required && value === undefined) {
-        missingParams.push(`${param.name} (${param.in})`);
-      }
-      
       if (value !== undefined) {
         if (param.in === 'path') {
-          // Replace path parameter in URL
           url = url.replace(`{${param.name}}`, encodeURIComponent(value));
         } else if (param.in === 'query') {
-          // Add to query parameters
           config.params[param.name] = value;
         }
       }
     }
     
-    // If there are missing required parameters, return an informative error
-    if (missingParams.length > 0) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Missing required parameters: ${missingParams.join(', ')}\n\nThis endpoint requires the following parameters:\n${
-              tool.parameters
-                .filter(p => p.required)
-                .map(p => `- ${p.name} (${p.in}): ${p.description || 'No description'}`)
-                .join('\n')
-            }`
-          }
-        ]
+    const response = await httpClient.get(url, config);
+    
+    // Add pagination info if applicable
+    let result = response.data;
+    if (args.Skip !== undefined && args.Take !== undefined) {
+      const totalCount = Array.isArray(result) ? result.length : 
+                        (result.totalCount || result.count || 'unknown');
+      
+      result = {
+        data: result,
+        pagination: {
+          skip: args.Skip,
+          take: args.Take,
+          page: Math.floor(args.Skip / args.Take) + 1,
+          totalCount: totalCount,
+          hasMore: Array.isArray(result) && result.length === args.Take
+        }
       };
     }
-    
-    const response = await httpClient.get(url, config);
     
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(response.data, null, 2)
+          text: JSON.stringify(result, null, 2)
         }
       ]
     };
@@ -454,7 +333,7 @@ async function callTool(tool: ToolDefinition, args: any): Promise<{ content: Tex
     process.stderr.write(`Error calling ${tool.name}: ${error.message}\n`);
     
     if (error.response) {
-      // Parse error message for more helpful feedback
+      // Enhanced error messages with helpful suggestions
       let errorMessage = `Error: ${error.response.status} ${error.response.statusText}\n`;
       
       if (error.response.data) {
@@ -462,21 +341,24 @@ async function callTool(tool: ToolDefinition, args: any): Promise<{ content: Tex
         if (data.Message) {
           errorMessage += `\nMessage: ${data.Message}`;
           
-          // Provide helpful hints for common errors
-          if (data.Message.includes('Not supported empty')) {
-            const paramName = data.Message.match(/Not supported empty (\w+)/)?.[1];
-            if (paramName) {
-              errorMessage += `\n\nHint: This endpoint requires the '${paramName}' parameter to be provided.`;
+          // Provide helpful suggestions for common errors
+          if (data.Message.includes('not be null')) {
+            const paramMatch = data.Message.match(/Parameter '([^']+)'/);
+            if (paramMatch) {
+              const paramName = paramMatch[1];
+              errorMessage += `\n\n💡 Suggestion: This endpoint requires the '${paramName}' parameter.`;
+              errorMessage += `\n\nTry using a smart tool instead:`;
               
-              // Find the parameter in the tool definition
-              const param = tool.parameters.find(p => p.name === paramName || p.name.toLowerCase() === paramName.toLowerCase());
-              if (param) {
-                errorMessage += `\n- ${param.name}: ${param.description || 'No description available'}`;
+              // Suggest appropriate smart tools
+              if (tool.path.includes('infobox')) {
+                errorMessage += `\n- list_document_folders: List folders without needing IDs`;
+                errorMessage += `\n- get_documents_in_folder: Get documents with folder ID`;
+              } else if (tool.path.includes('common')) {
+                errorMessage += `\n- get_messages: Get messages without needing IDs`;
+                errorMessage += `\n- get_company_info: Get company information`;
               }
             }
           }
-        } else {
-          errorMessage += JSON.stringify(data, null, 2);
         }
       }
       
@@ -501,15 +383,14 @@ async function callTool(tool: ToolDefinition, args: any): Promise<{ content: Tex
   }
 }
 
-// Initialize and start the server
+// Initialize and start server
 async function main() {
-  // Authenticate first if API key is available
   await authenticate();
   
   const transport = new StdioServerTransport();
   await server.connect(transport);
   
-  process.stderr.write('IOP Ticketing MCP server running on stdio\n');
+  process.stderr.write('IOP Ticketing MCP Enhanced server running on stdio\n');
 }
 
 main().catch(err => {

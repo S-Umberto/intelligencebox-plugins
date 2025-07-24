@@ -14,6 +14,7 @@ RUN npm ci
 COPY index.ts ./
 COPY tool-helper.ts ./
 COPY tool-categories.json ./
+COPY src ./src
 
 # Build TypeScript
 RUN npm run build
