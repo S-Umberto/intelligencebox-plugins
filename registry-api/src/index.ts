@@ -127,6 +127,7 @@ app.get('/api/registry/:id/manifest', async (req, res) => {
       version: mcp.version,
       dockerImage: mcp.dockerImage,
       dockerTag: mcp.dockerTag || 'latest',
+      entrypoint: mcp.entrypoint || 'node /app/dist/index.js',
       configSchema: mcp.configSchema,
       requirements: mcp.requirements,
       icon: mcp.icon,
