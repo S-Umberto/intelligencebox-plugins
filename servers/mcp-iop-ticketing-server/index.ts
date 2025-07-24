@@ -84,7 +84,8 @@ httpClient.interceptors.response.use(
 
 async function authenticate(): Promise<void> {
   if (!API_KEY) {
-    console.error('Warning: No API key configured. Some endpoints may require authentication.');
+    // Use stderr for warnings to not interfere with stdio protocol
+    process.stderr.write('Warning: No API key configured. Some endpoints may require authentication.\n');
     return;
   }
 
@@ -98,11 +99,11 @@ async function authenticate(): Promise<void> {
     });
 
     authToken = response.data.token;
-    console.error('Successfully authenticated with API');
+    process.stderr.write('Successfully authenticated with API\n');
   } catch (error: any) {
-    console.error('Failed to authenticate:', error.message);
+    process.stderr.write(`Failed to authenticate: ${error.message}\n`);
     if (error.response?.data) {
-      console.error('Response:', error.response.data);
+      process.stderr.write(`Response: ${JSON.stringify(error.response.data)}\n`);
     }
   }
 }
@@ -201,12 +202,12 @@ async function loadSwaggerSpec(): Promise<void> {
       }
     }
     
-    console.error(`Loaded ${tools.length} GET endpoints from Swagger spec`);
+    process.stderr.write(`Loaded ${tools.length} GET endpoints from Swagger spec\n`);
     
     // Create clustered tools
     createClusteredTools();
   } catch (error: any) {
-    console.error('Failed to load Swagger spec:', error.message);
+    process.stderr.write(`Failed to load Swagger spec: ${error.message}\n`);
     throw error;
   }
 }
@@ -254,7 +255,7 @@ function createClusteredTools(): void {
     clusteredTools.push(clusteredTool);
   }
   
-  console.error(`Created ${clusteredTools.length} clustered tools from ${tools.length} endpoints`);
+  process.stderr.write(`Created ${clusteredTools.length} clustered tools from ${tools.length} endpoints\n`);
 }
 
 // Convert Zod schema to JSON Schema for MCP protocol
@@ -450,7 +451,7 @@ async function callTool(tool: ToolDefinition, args: any): Promise<{ content: Tex
       ]
     };
   } catch (error: any) {
-    console.error(`Error calling ${tool.name}:`, error.message);
+    process.stderr.write(`Error calling ${tool.name}: ${error.message}\n`);
     
     if (error.response) {
       // Parse error message for more helpful feedback
@@ -508,7 +509,10 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   
-  console.error('IOP Ticketing MCP server running on stdio');
+  process.stderr.write('IOP Ticketing MCP server running on stdio\n');
 }
 
-main().catch(console.error);
+main().catch(err => {
+  process.stderr.write(`Fatal error: ${err.message}\n`);
+  process.exit(1);
+});

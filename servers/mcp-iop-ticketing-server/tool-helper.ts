@@ -40,7 +40,7 @@ export default class ToolHelper {
       const data = fs.readFileSync(categoriesPath, 'utf8');
       this.categories = JSON.parse(data);
     } catch (error) {
-      console.error('Error loading tool categories:', error);
+      process.stderr.write(`Error loading tool categories: ${error}\n`);
       this.categories = { categories: {}, quickAccess: {} };
     }
   }
