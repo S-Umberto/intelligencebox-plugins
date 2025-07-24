@@ -11,6 +11,12 @@ import axios, { AxiosInstance } from 'axios';
 import dotenv from 'dotenv';
 import { z } from 'zod';
 import { SMART_TOOLS, cleanParameters, DEFAULTS } from './src/smart-tools.js';
+import { 
+  LargeResponseHandler, 
+  NavigateResponseSchema, 
+  QueryResponseSchema, 
+  ExportResponseSchema 
+} from './src/large-response-handler.js';
 
 // Suppress dotenv console output
 const originalLog = console.log;
@@ -32,6 +38,7 @@ interface ToolDefinition {
 let swaggerSpec: any = null;
 let tools: ToolDefinition[] = [];
 let authToken: string | null = null;
+const responseHandler = new LargeResponseHandler();
 
 const server = new Server({
   name: 'iop-ticketing-mcp-enhanced',
@@ -188,6 +195,25 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     });
   }
   
+  // Add navigation tools for large responses
+  smartTools.push({
+    name: 'navigate_response',
+    description: 'Navigate through a saved large response using dot notation paths',
+    inputSchema: zodToJsonSchema(NavigateResponseSchema)
+  });
+  
+  smartTools.push({
+    name: 'query_response',
+    description: 'Query and filter data from a saved large response',
+    inputSchema: zodToJsonSchema(QueryResponseSchema)
+  });
+  
+  smartTools.push({
+    name: 'export_response',
+    description: 'Export a saved response or part of it to a file',
+    inputSchema: zodToJsonSchema(ExportResponseSchema)
+  });
+  
   process.stderr.write(`Returning ${smartTools.length} smart tools\n`);
   
   return { tools: smartTools };
@@ -199,6 +225,59 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
   
   const { name, arguments: args } = request.params;
+  
+  // Handle navigation tools
+  if (name === 'navigate_response') {
+    const validated = NavigateResponseSchema.parse(args);
+    const result = await responseHandler.navigateResponse(validated.response_id, validated.path);
+    const handledResult = await responseHandler.handleResponse(result);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(handledResult, null, 2)
+        }
+      ]
+    };
+  }
+  
+  if (name === 'query_response') {
+    const validated = QueryResponseSchema.parse(args);
+    const result = await responseHandler.queryResponse(validated.response_id, {
+      path: validated.path,
+      filter: validated.filter,
+      limit: validated.limit,
+      offset: validated.offset
+    });
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(result, null, 2)
+        }
+      ]
+    };
+  }
+  
+  if (name === 'export_response') {
+    const validated = ExportResponseSchema.parse(args);
+    const message = await responseHandler.exportResponse(
+      validated.response_id,
+      validated.output_path,
+      {
+        path: validated.path,
+        format: validated.format
+      }
+    );
+    return {
+      content: [
+        {
+          type: 'text',
+          text: message
+        }
+      ]
+    };
+  }
   
   // Check if this is a smart tool
   const smartTool = Object.values(SMART_TOOLS).find(t => t.name === name);
@@ -226,11 +305,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
         }
         
+        // Handle large responses for multiple operations
+        const handledResponses = await responseHandler.handleResponse(responses);
+        
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(responses, null, 2)
+              text: JSON.stringify(handledResponses, null, 2)
             }
           ]
         };
@@ -321,11 +403,14 @@ async function callTool(tool: ToolDefinition, args: any): Promise<{ content: Tex
       };
     }
     
+    // Handle large responses
+    const handledResult = await responseHandler.handleResponse(result);
+    
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(result, null, 2)
+          text: JSON.stringify(handledResult, null, 2)
         }
       ]
     };
