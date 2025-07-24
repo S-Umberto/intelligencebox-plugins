@@ -59,6 +59,9 @@ export class LargeResponseHandler {
       summary
     };
     this.responses.set(id, metadata);
+    
+    // Log for debugging
+    console.error(`[LargeResponseHandler] Stored response ${id} (${(size / 1024 / 1024).toFixed(2)}MB)`);
 
     // Clean up old responses (older than 1 hour)
     this.cleanupOldResponses();
@@ -107,36 +110,75 @@ export class LargeResponseHandler {
   async navigateResponse(responseId: string, navigationPath: string = ''): Promise<any> {
     const metadata = this.responses.get(responseId);
     if (!metadata) {
-      throw new Error(`Response ${responseId} not found`);
+      throw new Error(`Response ${responseId} not found. Available responses: ${Array.from(this.responses.keys()).join(', ') || 'none'}`);
     }
 
     const filePath = path.join(TEMP_DIR, `${responseId}.json`);
-    const content = await fs.readFile(filePath, 'utf-8');
-    const data = JSON.parse(content);
+    
+    try {
+      const content = await fs.readFile(filePath, 'utf-8');
+      const data = JSON.parse(content);
 
-    // Navigate to path if provided
-    let current = data;
-    if (navigationPath) {
-      const parts = navigationPath.split('.');
-      for (const part of parts) {
-        if (part.includes('[') && part.includes(']')) {
-          // Handle array access
-          const [arrayName, indexStr] = part.split('[');
-          const index = parseInt(indexStr.replace(']', ''));
-          current = arrayName ? current[arrayName][index] : current[index];
-        } else {
-          current = current[part];
+      // Navigate to path if provided
+      let current = data;
+      if (navigationPath) {
+        const parts = navigationPath.split('.');
+        for (const part of parts) {
+          if (current === null || current === undefined) {
+            throw new Error(`Cannot navigate to '${part}' - parent is ${current}`);
+          }
+          
+          if (part.includes('[') && part.includes(']')) {
+            // Handle array access
+            const [arrayName, indexStr] = part.split('[');
+            const index = parseInt(indexStr.replace(']', ''));
+            
+            if (arrayName) {
+              if (!(arrayName in current)) {
+                throw new Error(`Property '${arrayName}' not found in current object`);
+              }
+              if (!Array.isArray(current[arrayName])) {
+                throw new Error(`Property '${arrayName}' is not an array`);
+              }
+              if (index < 0 || index >= current[arrayName].length) {
+                throw new Error(`Array index ${index} out of bounds for '${arrayName}' (length: ${current[arrayName].length})`);
+              }
+              current = current[arrayName][index];
+            } else {
+              if (!Array.isArray(current)) {
+                throw new Error(`Cannot access index ${index} - current value is not an array`);
+              }
+              if (index < 0 || index >= current.length) {
+                throw new Error(`Array index ${index} out of bounds (length: ${current.length})`);
+              }
+              current = current[index];
+            }
+          } else {
+            if (typeof current !== 'object' || current === null) {
+              throw new Error(`Cannot access property '${part}' - current value is ${typeof current}`);
+            }
+            if (!(part in current)) {
+              const availableKeys = Object.keys(current).slice(0, 10).join(', ');
+              throw new Error(`Property '${part}' not found. Available keys: ${availableKeys}${Object.keys(current).length > 10 ? '...' : ''}`);
+            }
+            current = current[part];
+          }
         }
       }
-    }
 
-    // Return navigated data with size check
-    const result = JSON.stringify(current);
-    if (result.length > MAX_RESPONSE_SIZE) {
-      return this.handleResponse(current);
+      // Return navigated data with size check
+      const result = JSON.stringify(current);
+      if (result.length > MAX_RESPONSE_SIZE) {
+        return this.handleResponse(current);
+      }
+      
+      return current;
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        throw new Error(`Response file not found for ${responseId}. It may have been cleaned up.`);
+      }
+      throw error;
     }
-    
-    return current;
   }
 
   async queryResponse(responseId: string, query: {
@@ -145,35 +187,76 @@ export class LargeResponseHandler {
     limit?: number;
     offset?: number;
   }): Promise<any> {
-    const data = await this.navigateResponse(responseId, query.path || '');
-    
-    if (Array.isArray(data)) {
-      let results = data;
+    try {
+      const data = await this.navigateResponse(responseId, query.path || '');
       
-      // Apply filters
-      if (query.filter) {
-        results = results.filter(item => {
-          return Object.entries(query.filter!).every(([key, value]) => {
-            return item[key] === value;
-          });
-        });
+      if (!data) {
+        throw new Error(`No data found at path: ${query.path || 'root'}`);
       }
       
-      // Apply pagination
-      const offset = query.offset || 0;
-      const limit = query.limit || 20;
-      results = results.slice(offset, offset + limit);
+      if (Array.isArray(data)) {
+        let results = data;
+        
+        // Apply filters
+        if (query.filter && Object.keys(query.filter).length > 0) {
+          results = results.filter(item => {
+            if (!item || typeof item !== 'object') return false;
+            
+            return Object.entries(query.filter!).every(([key, value]) => {
+              // Handle nested property access with dot notation
+              const keys = key.split('.');
+              let current = item;
+              
+              for (const k of keys) {
+                if (current && typeof current === 'object' && k in current) {
+                  current = current[k];
+                } else {
+                  return false;
+                }
+              }
+              
+              // Handle different comparison types
+              if (typeof value === 'object' && value !== null) {
+                // Handle range queries
+                if ('$gte' in value || '$lte' in value || '$gt' in value || '$lt' in value) {
+                  const currentValue = new Date(current).getTime();
+                  if ('$gte' in value && currentValue < new Date(value.$gte).getTime()) return false;
+                  if ('$lte' in value && currentValue > new Date(value.$lte).getTime()) return false;
+                  if ('$gt' in value && currentValue <= new Date(value.$gt).getTime()) return false;
+                  if ('$lt' in value && currentValue >= new Date(value.$lt).getTime()) return false;
+                  return true;
+                }
+              }
+              
+              return current === value;
+            });
+          });
+        }
+        
+        // Apply pagination
+        const offset = query.offset || 0;
+        const limit = query.limit || 20;
+        const paginatedResults = results.slice(offset, offset + limit);
+        
+        return {
+          results: paginatedResults,
+          total: results.length,
+          offset,
+          limit,
+          hasMore: offset + limit < results.length,
+          message: `Showing ${paginatedResults.length} of ${results.length} results`
+        };
+      }
       
+      // If not an array, return the data as-is with metadata
       return {
-        results,
-        total: data.length,
-        offset,
-        limit,
-        hasMore: offset + limit < data.length
+        data,
+        type: typeof data,
+        message: 'Data is not an array, returning as-is'
       };
+    } catch (error: any) {
+      throw new Error(`Failed to query response ${responseId}: ${error.message}`);
     }
-    
-    return data;
   }
 
   private cleanupOldResponses() {

@@ -228,55 +228,110 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   
   // Handle navigation tools
   if (name === 'navigate_response') {
-    const validated = NavigateResponseSchema.parse(args);
-    const result = await responseHandler.navigateResponse(validated.response_id, validated.path);
-    const handledResult = await responseHandler.handleResponse(result);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(handledResult, null, 2)
-        }
-      ]
-    };
+    try {
+      const validated = NavigateResponseSchema.parse(args);
+      const result = await responseHandler.navigateResponse(validated.response_id, validated.path);
+      const handledResult = await responseHandler.handleResponse(result);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(handledResult, null, 2)
+          }
+        ]
+      };
+    } catch (error: any) {
+      process.stderr.write(`[navigate_response] Error: ${error.message}\n`);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: true,
+              message: error.message,
+              tool: 'navigate_response',
+              args
+            }, null, 2)
+          }
+        ]
+      };
+    }
   }
   
   if (name === 'query_response') {
-    const validated = QueryResponseSchema.parse(args);
-    const result = await responseHandler.queryResponse(validated.response_id, {
-      path: validated.path,
-      filter: validated.filter,
-      limit: validated.limit,
-      offset: validated.offset
-    });
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(result, null, 2)
-        }
-      ]
-    };
+    try {
+      const validated = QueryResponseSchema.parse(args);
+      process.stderr.write(`[query_response] Querying response ${validated.response_id} with path: ${validated.path || 'root'}\n`);
+      
+      const result = await responseHandler.queryResponse(validated.response_id, {
+        path: validated.path,
+        filter: validated.filter,
+        limit: validated.limit,
+        offset: validated.offset
+      });
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2)
+          }
+        ]
+      };
+    } catch (error: any) {
+      process.stderr.write(`[query_response] Error: ${error.message}\n`);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: true,
+              message: error.message,
+              tool: 'query_response',
+              args,
+              hint: 'Check if the response_id exists and the path is valid'
+            }, null, 2)
+          }
+        ]
+      };
+    }
   }
   
   if (name === 'export_response') {
-    const validated = ExportResponseSchema.parse(args);
-    const message = await responseHandler.exportResponse(
-      validated.response_id,
-      validated.output_path,
-      {
-        path: validated.path,
-        format: validated.format
-      }
-    );
-    return {
-      content: [
+    try {
+      const validated = ExportResponseSchema.parse(args);
+      const message = await responseHandler.exportResponse(
+        validated.response_id,
+        validated.output_path,
         {
-          type: 'text',
-          text: message
+          path: validated.path,
+          format: validated.format
         }
-      ]
-    };
+      );
+      return {
+        content: [
+          {
+            type: 'text',
+            text: message
+          }
+        ]
+      };
+    } catch (error: any) {
+      process.stderr.write(`[export_response] Error: ${error.message}\n`);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: true,
+              message: error.message,
+              tool: 'export_response',
+              args
+            }, null, 2)
+          }
+        ]
+      };
+    }
   }
   
   // Check if this is a smart tool
